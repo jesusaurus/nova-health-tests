@@ -19,10 +19,28 @@ set -o xtrace
 # Keep track of the current directory
 SCRIPT_DIR=$(cd $(dirname "$0") && pwd)
 TOP_DIR=$(cd $SCRIPT_DIR/..; pwd)
-UBUNTU_IMAGE=67074
-XSMALL_FLAVOR=100
 ACTIVE_TIMEOUT=500
 INSTANCE_NAME='test'
+
+# Boot this image, use first bare image if unset
+DEFAULT_IMAGE_NAME=${DEFAULT_IMAGE_NAME:-precise}
+
+DEFAULT_FLAVOR_NAME=${DEFAULT_FLAVOR_NAME:-small}
+
+# List the images available
+glance image-list
+
+# Grab the id of the image to launch
+IMAGE=$(glance image-list | egrep " $DEFAULT_IMAGE_NAME " | awk '{print $2}')
+echo ${IMAGE:?Failure getting image $DEFAULT_IMAGE_NAME.}
+
+# List the flavors available
+nova flavor-list
+
+# Grab the id of the flavor to launch
+FLAVOR=$(nova flavor-list | egrep "$DEFAULT_FLAVOR_NAME" | awk '{print $2}')
+echo ${FLAVOR:?Failure getting flavor $DEFAULT_FLAVOR_NAME.}
+
 
 nova boot $INSTANCE_NAME --image $UBUNTU_IMAGE --flavor $XSMALL_FLAVOR
 
