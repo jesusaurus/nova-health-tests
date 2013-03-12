@@ -24,9 +24,6 @@ XSMALL_FLAVOR=100
 ACTIVE_TIMEOUT=500
 INSTANCE_NAME='test'
 
-# Import configuration
-source /opt/nova_rc.sh
-
 nova boot $INSTANCE_NAME --image $UBUNTU_IMAGE --flavor $XSMALL_FLAVOR
 
 if ! timeout $ACTIVE_TIMEOUT sh -c "while ! nova list | grep $INSTANCE_NAME | grep ACTIVE; do sleep 1; done"; then
