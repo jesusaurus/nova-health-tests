@@ -18,6 +18,7 @@ import logging
 import telnetlib
 from novaclient.v1_1 import client
 import re
+import os
 
 
 logging.basicConfig(format='%(levelname)s\t%(name)s\t%(message)s')
@@ -54,18 +55,11 @@ class Nova_health_tests(testtools.TestCase):
     def setUp(self):
         super(Nova_health_tests, self).setUp()
 
+        username = os.environ['OS_USERNAME']
+        password = os.environ['OS_PASSWORD']
+        tenant = os.environ['OS_TENANT_NAME']
+        auth_url = os.environ['OS_AUTH_URL']
 
-        #username = os.environ['OS_USERNAME']
-        #password = os.environ['OS_PASSWORD']
-        #tenant = os.environ['OS_TENANT_NAME']
-        #auth_url = os.environ['OS_AUTH_URL']
-        #region = os.environ['OS_REGION_NAME']
-        #keypair = os.environ['OS_KEYPAIR']
-
-        username = "admin"
-        password = "password"
-        tenant = "admin"
-        auth_url = "http://192.168.181.128:5000/v2.0"
         Nova_health_tests.DEFAULT_FLAVOR = "m1.tiny"
         Nova_health_tests.DEFAULT_IMAGE = "cirros-0.3.1-x86_64-uec"
 
@@ -79,7 +73,7 @@ class Nova_health_tests(testtools.TestCase):
         super(Nova_health_tests, self).tearDown()
         self.cleanup()
 
-    def security_group_test(self):
+    def test_security_group(self):
 
         flavor = self.nova.flavors.find(name=Nova_health_tests.DEFAULT_FLAVOR)
         image = self.nova.images.find(name=Nova_health_tests.DEFAULT_IMAGE)
