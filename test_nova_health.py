@@ -19,6 +19,7 @@ import telnetlib
 from novaclient.v1_1 import client
 import re
 import os
+import StringIO
 
 
 logging.basicConfig(format='%(levelname)s\t%(name)s\t%(message)s')
@@ -45,12 +46,19 @@ def poll_until(retriever, condition=lambda value: value,
         obj = retriever()
     return obj
 
+def check_for_exception(f, *args):
+    try:
+        f(*args)
+        return True
+    except:
+        return False
+
+
 
 class Nova_health_tests(testtools.TestCase):
 
     INSTANCE_NAME = "nova_test"
-    DEFAULT_FLAVOR = "standard.xsmall"
-    DEFAULT_IMAGE = "Ubuntu Precise 12.04 LTS Server 64-bit 20121026 (b)"
+    SECGROUP_NAME = "secgroup_test"
 
     def setUp(self):
         super(Nova_health_tests, self).setUp()
@@ -60,8 +68,8 @@ class Nova_health_tests(testtools.TestCase):
         tenant = os.environ['OS_TENANT_NAME']
         auth_url = os.environ['OS_AUTH_URL']
 
-        Nova_health_tests.DEFAULT_FLAVOR = "m1.tiny"
-        Nova_health_tests.DEFAULT_IMAGE = "quantal"
+        self.mysql_image = os.environ['MYSQL_IMAGE']
+        self.flavor = os.environ['DEFAULT_FLAVOR']
 
         self.nova = client.Client(username=username,
                                   api_key=password,
@@ -74,45 +82,65 @@ class Nova_health_tests(testtools.TestCase):
         self.cleanup()
 
     def test_security_group(self):
-	
-	user_data_file = "/tmp/portListener.sh"
-	file = open(user_data_file, 'w')
-	file.write('#!/bin/bash\n')
-	file.write('nc -l -p 50000\n')
-	file.close()
-	self.assertTrue(os.path.exists(user_data_file))
-        flavor = self.nova.flavors.find(name=Nova_health_tests.DEFAULT_FLAVOR)
-        image = self.nova.images.find(name=Nova_health_tests.DEFAULT_IMAGE)
 
+        open_port = 50000
+        close_port = 50001
+
+        # create script to start listener
+        user_data = StringIO.StringIO()
+        user_data.write('#!/bin/bash\n')
+        user_data.write('nc -l -p {0}\n'.format(open_port))
+        content = user_data.getvalue()
+        user_data.close()
+
+        # boot instance
+        flavor = self.nova.flavors.find(name=self.flavor)
+        image = self.nova.images.find(name=self.mysql_image)
         server_id = self.nova.servers.create(Nova_health_tests.INSTANCE_NAME,
-                                      image=image,
-				      userdata=user_data_file,
-                                      flavor=flavor).id
+                                             image=image,
+                                             userdata=content,
+                                             flavor=flavor).id
         newserver = poll_until(lambda: self.nova.servers.get(server_id),
                                lambda inst: inst.status != 'BUILD',
                                sleep_time=2)
+        self.assertEquals('ACTIVE', newserver.status)
 
-        self.assertEquals("ACTIVE", newserver.status)
-        network = newserver.networks["private"][0]
-        logger.info('Telnet to %s:%s', network, 50000)
-        telnet_client = telnetlib.Telnet(network, 50000, 500)
+        # create sec group + rule
+        secgroup = self.nova.security_groups.create(Nova_health_tests
+                                                    .SECGROUP_NAME,
+                                                    'Test security group')
+        self.nova.security_group_rules.create(secgroup.id, 'tcp',
+                                              open_port,
+                                              open_port, '0.0.0.0/0')
+        self.nova.servers.add_security_group(server_id,
+                                             Nova_health_tests.SECGROUP_NAME)
 
+        network = newserver.networks['private'][0]
+        logger.info('Telnet to %s:%s', network, open_port)
+        check_sec_group = poll_until(lambda: check_for_exception(telnetlib
+                                                                 .Telnet,
+                                                                 network,
+                                                                 open_port,
+                                                                 5 * MINUTE),
+                                     lambda result: result,
+                                     sleep_time=2)
+        self.assertTrue(check_sec_group)
+
+        self.assertRaises(Exception, telnetlib.Telnet, network, close_port,
+                          5 * MINUTE)
 
     def cleanup(self):
-        '''Remove any instances with a matching name then exit.'''
+        # Remove any instances with a matching name.
         previous = re.compile('^' + Nova_health_tests.INSTANCE_NAME)
-        exit = False
         for server in self.nova.servers.list():
             if previous.match(server.name):
-                logger.warning("Detected active instance from another run, "
-                               "deleting %s", server.id)
-                self.delete(server.id)
+                logger.info("Deleting instance %s", server.id)
+                self.nova.servers.delete(server.id)
 
-    def delete(self, server_id):
+        # Remove any security group with a matching name.
+        previous = re.compile('^' + Nova_health_tests.SECGROUP_NAME)
+        for secgroup in self.nova.security_groups.list():
+            if previous.match(secgroup.name):
+                logger.info("Deleting security group %s", secgroup.name)
+                self.nova.security_groups.delete(secgroup.id)
 
-        try:
-            logger.info('Deleting server: {0}'.format(server_id))
-            self.nova.servers.delete(server_id)
-        except Exception as e:
-            logger.exception('Encountered an Exception: {0}'.format(e))
-            raise e
