@@ -68,7 +68,7 @@ class Nova_health_tests(testtools.TestCase):
         tenant = os.environ['OS_TENANT_NAME']
         auth_url = os.environ['OS_AUTH_URL']
 
-        self.mysql_image = os.environ['MYSQL_IMAGE']
+        self.image = os.environ['DEFAULT_IMAGE']
         self.flavor = os.environ['DEFAULT_FLAVOR']
 
         self.nova = client.Client(username=username,
@@ -95,7 +95,7 @@ class Nova_health_tests(testtools.TestCase):
 
         # boot instance
         flavor = self.nova.flavors.find(name=self.flavor)
-        image = self.nova.images.find(name=self.mysql_image)
+        image = self.nova.images.find(name=self.image)
         server_id = self.nova.servers.create(Nova_health_tests.INSTANCE_NAME,
                                              image=image,
                                              userdata=content,
