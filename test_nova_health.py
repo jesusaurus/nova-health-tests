@@ -61,7 +61,7 @@ class Nova_health_tests(testtools.TestCase):
         auth_url = os.environ['OS_AUTH_URL']
 
         Nova_health_tests.DEFAULT_FLAVOR = "m1.tiny"
-        Nova_health_tests.DEFAULT_IMAGE = "cirros-0.3.1-x86_64-uec"
+        Nova_health_tests.DEFAULT_IMAGE = "quantal"
 
         self.nova = client.Client(username=username,
                                   api_key=password,
@@ -74,22 +74,28 @@ class Nova_health_tests(testtools.TestCase):
         self.cleanup()
 
     def test_security_group(self):
-
+	
+	user_data_file = "/tmp/portListener.sh"
+	file = open(user_data_file, 'w')
+	file.write('#!/bin/bash\n')
+	file.write('nc -l -p 50000\n')
+	file.close()
+	self.assertTrue(os.path.exists(user_data_file))
         flavor = self.nova.flavors.find(name=Nova_health_tests.DEFAULT_FLAVOR)
         image = self.nova.images.find(name=Nova_health_tests.DEFAULT_IMAGE)
 
         server_id = self.nova.servers.create(Nova_health_tests.INSTANCE_NAME,
                                       image=image,
+				      userdata=user_data_file,
                                       flavor=flavor).id
         newserver = poll_until(lambda: self.nova.servers.get(server_id),
                                lambda inst: inst.status != 'BUILD',
                                sleep_time=2)
 
         self.assertEquals("ACTIVE", newserver.status)
-        networks = newserver.networks["private"]
-        for network in networks:
-            logger.info('Telnet to %s:%s', network, 22)
-            telnet_client = telnetlib.Telnet(network, 22, 500)
+        network = newserver.networks["private"][0]
+        logger.info('Telnet to %s:%s', network, 50000)
+        telnet_client = telnetlib.Telnet(network, 50000, 500)
 
 
     def cleanup(self):
