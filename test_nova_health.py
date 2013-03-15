@@ -20,11 +20,15 @@ from novaclient.v1_1 import client
 import re
 import os
 import StringIO
-
+import urllib2
+import subprocess
+from nose.tools import nottest
 
 logging.basicConfig(format='%(levelname)s\t%(name)s\t%(message)s')
 logger = logging.getLogger('nova_health_tests')
 logger.setLevel(logging.INFO)
+ch = logging.StreamHandler()
+logger.addHandler(ch)
 MINUTE = 60
 
 
@@ -76,10 +80,25 @@ class Nova_health_tests(testtools.TestCase):
                                   project_id=tenant,
                                   auth_url=auth_url,
                                   service_type="compute")
+	
+	
+	self.cleanup()
 
     def tearDown(self):
         super(Nova_health_tests, self).tearDown()
         self.cleanup()
+
+    def test_create_image(self):
+
+        # Download image
+        #image_file_location = '/tmp/cirros.img'
+        image_url = 'https://launchpad.net/cirros/trunk/0.3.0/+download/cirros-0.3.0-i386-disk.img'
+        image = urllib2.urlopen(image_url)
+        #output = open(image_file_location, 'rb')
+        #output.write(image.read())
+        #output.close()
+	cmd = ['glance', 'image-create', '--name', 'My Test Image', '--disk-format=raw', '--container-format=bare']
+        subprocess.call(cmd, stdin=image)
 
     def test_security_group(self):
 
@@ -135,7 +154,10 @@ class Nova_health_tests(testtools.TestCase):
         for server in self.nova.servers.list():
             if previous.match(server.name):
                 logger.info("Deleting instance %s", server.id)
-                self.nova.servers.delete(server.id)
+                self.nova.servers.remove_security_group(server.id,
+                                                        Nova_health_tests
+                                                        .SECGROUP_NAME)
+		self.nova.servers.delete(server.id)
 
         # Remove any security group with a matching name.
         previous = re.compile('^' + Nova_health_tests.SECGROUP_NAME)
