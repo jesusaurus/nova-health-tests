@@ -279,5 +279,6 @@ class Nova_health_tests(testtools.TestCase):
         previous = re.compile('^' + Nova_health_tests.VOLUME_NAME)
         for volume in self.cinder.volumes.list():
             if previous.match(volume.display_name):
-                logger.info("Deleting volume %s", volume.display_name)
-                self.cinder.volumes.delete(volume.id)
+                if volume.status == 'available':
+                    logger.info("Deleting volume %s", volume.display_name)
+                    self.cinder.volumes.delete(volume.id)
