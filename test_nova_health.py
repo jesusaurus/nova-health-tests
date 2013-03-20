@@ -33,7 +33,7 @@ MINUTE = 60
 
 
 def poll_until(retriever, condition=lambda value: value,
-               sleep_time=1, time_out=10 * MINUTE):
+               sleep_time=1, time_out=5 * MINUTE):
     """Retrieves object until it passes condition, then returns it.
 
     If time_out_limit is passed in, PollTimeOut will be raised once that
@@ -50,9 +50,9 @@ def poll_until(retriever, condition=lambda value: value,
         obj = retriever()
     return obj
 
-def check_for_exception(f, *args):
+def check_for_exception(f, *args, **kwargs):
     try:
-        f(*args)
+        f(*args, **kwargs)
         return True
     except:
         return False
@@ -175,9 +175,15 @@ class Nova_health_tests(testtools.TestCase):
 
         client = ssh.SSHClient()
         client.set_missing_host_key_policy(ssh.AutoAddPolicy())
-        network = newserver.networks['private'][0]
-        client.connect(network, username='cirros',
-                       password='cubswin:)')
+        network = newserver.networks['private'][-1]
+
+        poll_until(lambda: check_for_exception(client.connect,
+                                               network,
+                                               username='cirros',
+                                               password='cubswin:)'),
+                   lambda result: result,
+                   sleep_time=2)
+
         _, stdout, _ = client.exec_command('ls /dev')
         result = stdout.readlines()
         client.close()
@@ -221,7 +227,7 @@ class Nova_health_tests(testtools.TestCase):
         self.nova.servers.add_security_group(server_id,
                                              Nova_health_tests.SECGROUP_NAME)
 
-        network = newserver.networks['private'][0]
+        network = newserver.networks['private'][-1]
         logger.info('Telnetting to %s:%s', network, open_port)
         check_sec_group = poll_until(lambda: check_for_exception(telnetlib
                                                                  .Telnet,
