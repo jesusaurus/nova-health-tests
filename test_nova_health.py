@@ -187,7 +187,7 @@ class Nova_health_tests(testtools.TestCase):
         _, stdout, _ = client.exec_command('ls /dev')
         result = stdout.readlines()
         client.close()
-        logger.info('Files in /dev', result)
+        logger.info('Files in /dev: %s', result)
         self.assertTrue('vdb\n' in result)
 
     def test_security_group(self):
