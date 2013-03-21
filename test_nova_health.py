@@ -176,7 +176,7 @@ class Nova_health_tests(testtools.TestCase):
         client = ssh.SSHClient()
         client.set_missing_host_key_policy(ssh.AutoAddPolicy())
         network = newserver.networks['private'][-1]
-
+        logger.info('SSHing to %s', network)
         poll_until(lambda: check_for_exception(client.connect,
                                                network,
                                                username='cirros',
@@ -187,6 +187,7 @@ class Nova_health_tests(testtools.TestCase):
         _, stdout, _ = client.exec_command('ls /dev')
         result = stdout.readlines()
         client.close()
+        logger.info('Files in /dev', result)
         self.assertTrue('vdb\n' in result)
 
     def test_security_group(self):
