@@ -60,11 +60,6 @@ def check_for_exception(f, *args, **kwargs):
 
 class Nova_health_tests(testtools.TestCase):
 
-    INSTANCE_NAME = 'nova_test'
-    VOLUME_NAME = 'volume_test'
-    SECGROUP_NAME = 'secgroup_test'
-    IMAGE_NAME = 'image_test'
-
     def setUp(self):
         super(Nova_health_tests, self).setUp()
 
@@ -76,6 +71,11 @@ class Nova_health_tests(testtools.TestCase):
         self.ubuntu_image = os.environ['DEFAULT_UBUNTU_IMAGE']
         self.cirros_image = os.environ['DEFAULT_CIRROS_IMAGE']
         self.flavor = os.environ['DEFAULT_FLAVOR']
+
+        self.INSTANCE_NAME = 'nova_test'
+        self.VOLUME_NAME = 'volume_test'
+        self.SECGROUP_NAME = 'secgroup_test'
+        self.IMAGE_NAME = 'image_test'
 
         self.nova = client.Client(username=username,
                                   api_key=password,
@@ -102,8 +102,7 @@ class Nova_health_tests(testtools.TestCase):
         logger.info("Downloading image...")
         image_url = 'https://launchpad.net/cirros/trunk/0.3.0/+download/cirros-0.3.0-i386-disk.img'
         image = urllib2.urlopen(image_url)
-        cmd = ['glance', 'image-create', '--name',
-               Nova_health_tests.IMAGE_NAME,
+        cmd = ['glance', 'image-create', '--name', self.IMAGE_NAME,
                '--disk-format=raw', '--container-format=bare']
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=image)
 
@@ -117,7 +116,7 @@ class Nova_health_tests(testtools.TestCase):
             self.fail()
 
         test_image = [image.name for image in self.nova.images.list()
-                      if image.name == Nova_health_tests.IMAGE_NAME]
+                      if image.name == self.IMAGE_NAME]
 
         self.assertTrue(test_image)
 
@@ -132,7 +131,7 @@ class Nova_health_tests(testtools.TestCase):
                         if 'medium' in flavor.name]
 
         image = self.nova.images.find(name=self.cirros_image)
-        server_id = self.nova.servers.create(Nova_health_tests.INSTANCE_NAME,
+        server_id = self.nova.servers.create(self.INSTANCE_NAME,
                                              image=image,
                                              flavor=small_flavor[0].id).id
         newserver = poll_until(lambda: self.nova.servers.get(server_id),
@@ -154,16 +153,14 @@ class Nova_health_tests(testtools.TestCase):
 
         # create volume
         logger.info("Creating new volume")
-        volume = self.cinder.volumes.create(1,
-                                            display_name=Nova_health_tests
-                                            .VOLUME_NAME)
+        volume = self.cinder.volumes.create(1, display_name=self.VOLUME_NAME)
         bdm = {'/dev/vdb': '{0}:::0'.format(volume.id)}
 
         # boot instance
         logger.info("Booting new instance")
         flavor = self.nova.flavors.find(name=self.flavor)
         image = self.nova.images.find(name=self.cirros_image)
-        server_id = self.nova.servers.create(Nova_health_tests.INSTANCE_NAME,
+        server_id = self.nova.servers.create(self.INSTANCE_NAME,
                                              image=image,
                                              block_device_mapping=bdm,
                                              flavor=flavor).id
@@ -207,7 +204,7 @@ class Nova_health_tests(testtools.TestCase):
         logger.info("Booting new instance")
         flavor = self.nova.flavors.find(name=self.flavor)
         image = self.nova.images.find(name=self.ubuntu_image)
-        server_id = self.nova.servers.create(Nova_health_tests.INSTANCE_NAME,
+        server_id = self.nova.servers.create(self.INSTANCE_NAME,
                                              image=image,
                                              userdata=content,
                                              flavor=flavor).id
@@ -219,14 +216,12 @@ class Nova_health_tests(testtools.TestCase):
 
         # create sec group + rule
         logger.info("Creating new security group + rules")
-        secgroup = self.nova.security_groups.create(Nova_health_tests
-                                                    .SECGROUP_NAME,
+        secgroup = self.nova.security_groups.create(self.SECGROUP_NAME,
                                                     'Test security group')
         self.nova.security_group_rules.create(secgroup.id, 'tcp',
                                               open_port,
                                               open_port, '0.0.0.0/0')
-        self.nova.servers.add_security_group(server_id,
-                                             Nova_health_tests.SECGROUP_NAME)
+        self.nova.servers.add_security_group(server_id, self.SECGROUP_NAME)
 
         network = newserver.networks['private'][-1]
         logger.info('Telnetting to %s:%s', network, open_port)
@@ -244,16 +239,15 @@ class Nova_health_tests(testtools.TestCase):
 
     def cleanup(self):
         # Remove any instances with a matching name.
-        previous = re.compile('^' + Nova_health_tests.INSTANCE_NAME)
+        previous = re.compile('^' + self.INSTANCE_NAME)
         for server in self.nova.servers.list():
             if previous.match(server.name):
 
                 sec_group_names = [sg for sg in server.security_groups
-                                   if sg['name'] == Nova_health_tests
-                                   .SECGROUP_NAME]
+                                   if sg['name'] == self.SECGROUP_NAME]
                 if sec_group_names:
                     self.nova.servers.remove_security_group(server.id,
-                                                            Nova_health_tests.SECGROUP_NAME)
+                                                            self.SECGROUP_NAME)
                 logger.info("Deleting instance %s", server.id)
                 self.nova.servers.delete(server.id)
 
@@ -263,21 +257,21 @@ class Nova_health_tests(testtools.TestCase):
                    sleep_time=1)
 
         # Remove any security group with a matching name.
-        previous = re.compile('^' + Nova_health_tests.SECGROUP_NAME)
+        previous = re.compile('^' + self.SECGROUP_NAME)
         for secgroup in self.nova.security_groups.list():
             if previous.match(secgroup.name):
                 logger.info("Deleting security group %s", secgroup.name)
                 self.nova.security_groups.delete(secgroup.id)
 
         # Remove any image with a matching name.
-        previous = re.compile('^' + Nova_health_tests.IMAGE_NAME)
+        previous = re.compile('^' + self.IMAGE_NAME)
         for image in self.nova.images.list():
             if previous.match(image.name):
                 logger.info("Deleting image %s", image.name)
                 self.nova.images.delete(image.id)
 
         # Remove any volume with a matching name.
-        previous = re.compile('^' + Nova_health_tests.VOLUME_NAME)
+        previous = re.compile('^' + self.VOLUME_NAME)
         for volume in self.cinder.volumes.list():
             if previous.match(volume.display_name):
                 if volume.status == 'available':
