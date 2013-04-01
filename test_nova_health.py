@@ -23,6 +23,7 @@ import StringIO
 import urllib2
 import subprocess
 import ssh
+from datetime import datetime
 
 logging.basicConfig(format='%(levelname)s\t%(name)s\t%(message)s')
 logger = logging.getLogger('nova_health_tests')
@@ -72,10 +73,12 @@ class Nova_health_tests(testtools.TestCase):
         self.cirros_image = os.environ['DEFAULT_CIRROS_IMAGE']
         self.flavor = os.environ['DEFAULT_FLAVOR']
 
-        self.INSTANCE_NAME = 'nova_test'
-        self.VOLUME_NAME = 'volume_test'
-        self.SECGROUP_NAME = 'secgroup_test'
-        self.IMAGE_NAME = 'image_test'
+        date = datetime.utcnow().isoformat()
+        self.INSTANCE_NAME = 'nova_test-' + date
+        self.VOLUME_NAME = 'volume_test-' + date
+        self.SECGROUP_NAME = 'secgroup_test-' + date
+        self.IMAGE_NAME = 'image_test-' + date
+        self.skip_cleanup = False
 
         self.nova = client.Client(username=username,
                                   api_key=password,
@@ -90,6 +93,10 @@ class Nova_health_tests(testtools.TestCase):
                                     service_type="volume")
 
         self.cleanup()
+        self.addOnException(self.disable_cleanup)
+
+    def disable_cleanup(self):
+        self.skip_cleanup = True
 
     def tearDown(self):
         super(Nova_health_tests, self).tearDown()
@@ -238,6 +245,10 @@ class Nova_health_tests(testtools.TestCase):
                           5 * MINUTE)
 
     def cleanup(self):
+
+        if self.skip_cleanup:
+            return
+
         # Remove any instances with a matching name.
         previous = re.compile('^' + self.INSTANCE_NAME)
         for server in self.nova.servers.list():
